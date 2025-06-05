@@ -1,0 +1,28 @@
+//@version=5
+strategy("SAR Alarm Strategy [LazyBear]", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=100000)
+
+// === Inputs ===
+start     = input.float(0.02, title="Start")
+increment = input.float(0.02, title="Increment")
+maximum   = input.float(0.2,  title="Maximum")
+
+// === Fixed Risk Management ===
+takeProfitPerc = {{TP}}
+stopLossPerc   = {{SL}}
+
+// === SAR Calculation ===
+sarValue = ta.sar(start, increment, maximum)
+
+// === Entry/Exit Logic ===
+longCondition = ta.crossover(close, sarValue)  // Price crosses above SAR
+exitCondition = ta.crossunder(close, sarValue) // Price crosses below SAR
+
+// === Execute Strategy ===
+if (longCondition)
+    strategy.entry("Long", strategy.long, stop=close * (1 - stopLossPerc / 100), limit=close * (1 + takeProfitPerc / 100))
+
+if (exitCondition)
+    strategy.close("Long")
+
+// === Plotting ===
+plot(sarValue, color=color.orange, title="Parabolic SAR")

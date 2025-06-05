@@ -1,0 +1,6 @@
+venv
+edge_profile
+chrome_profile
+tv_profile
+*.exe
+*.png
