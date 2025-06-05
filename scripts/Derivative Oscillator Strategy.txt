@@ -1,0 +1,31 @@
+//@version=4
+strategy("Derivative Oscillator Strategy [LazyBear Modified]", shorttitle="DO_Strategy_LB", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === Inputs ===
+length = input(14, title="RSI Length")
+p = input(9, title="SMA length")
+ema1 = input(5, title="EMA1 length")
+ema2 = input(3, title="EMA2 length")
+
+// === Derivative Oscillator Calculation ===
+s1 = ema(ema(rsi(close, length), ema1), ema2)
+s2 = s1 - sma(s1, p)
+
+// === Histogram Color (same as original)
+c_color = s2 < 0 ? (s2 < s2[1] ? color.red : color.lime) : (s2 >= 0 ? (s2 > s2[1] ? color.lime : color.red) : na)
+plot(s2, style=plot.style_histogram, color=c_color, title="Derivative Oscillator")
+
+// === Strategy Logic ===
+longEntry = crossover(s2, 0)
+longExit  = crossunder(s2, 0)
+
+if (longEntry)
+    strategy.entry("Long", strategy.long)
+
+// === TP/SL Logic ===
+long_tp = close * (1 + {{TP}} / 100)
+long_sl = close * (1 - {{SL}} / 100)
+strategy.exit("Exit Long", from_entry="Long", limit=long_tp, stop=long_sl)
+
+if (longExit)
+    strategy.close("Long")

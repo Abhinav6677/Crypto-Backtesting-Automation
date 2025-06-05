@@ -1,0 +1,49 @@
+//@version=4
+strategy(title = "Tirone Levels Strategy [LazyBear Modified]", shorttitle="Tirone_Strategy_LB", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === Inputs ===
+length = input(20, title="Period")
+method_mp = input(false, title="Midpoint Method?")
+method_mm = input(true, title="Mean Method?")
+
+// === Price Range
+ll = lowest(low, length)
+hh = highest(high, length)
+
+// === Midpoint Method Levels ===
+tlh = hh - ((hh - ll) / 3)
+clh = ll + ((hh - ll) / 2)
+blh = ll + ((hh - ll) / 3)
+
+// === Mean Method Levels ===
+am  = (hh + ll + close) / 3
+eh = am + (hh - ll)
+el = am - (hh - ll)
+rh = 2 * am - ll
+rl = 2 * am - hh
+
+// === Plotting ===
+plot(method_mp ? tlh : na, color=color.red, title="Top Level (Midpoint)")
+plot(method_mp ? clh : na, title="Center Level (Midpoint)")
+plot(method_mp ? blh : na, color=color.green, title="Bottom Level (Midpoint)")
+
+plot(method_mm ? eh : na, color=color.red, title="Extreme High (Mean)")
+plot(method_mm ? rh : na, color=color.red, title="Resistance High (Mean)")
+plot(method_mm ? am : na, title="Average Mean")
+plot(method_mm ? rl : na, color=color.green, title="Resistance Low (Mean)")
+plot(method_mm ? el : na, color=color.green, title="Extreme Low (Mean)")
+
+// === Strategy Logic ===
+longEntry  = method_mm ? crossover(close, el) : crossover(close, blh)
+longExit   = method_mm ? crossunder(close, eh) : crossunder(close, tlh)
+
+if (longEntry)
+    strategy.entry("Long", strategy.long)
+
+// === TP/SL Logic ===
+long_tp = close * (1 + {{TP}} / 100)
+long_sl = close * (1 - {{SL}} / 100)
+strategy.exit("Exit Long", from_entry="Long", limit=long_tp, stop=long_sl)
+
+if (longExit)
+    strategy.close("Long")

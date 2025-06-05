@@ -1,0 +1,40 @@
+//@version=4
+strategy("Bears/Bulls Strategy [LazyBear]", shorttitle="BearsBulls_Strategy_LB", overlay=false)
+
+length = input(13)
+src = close
+exit_bars = input(10, "Exit After N Bars", minval=1)
+
+s_ma = sma(src, length)
+s_bulls = high - s_ma
+s_bears = low - s_ma
+
+plot(s_bulls, style=plot.style_area, color=color.green, transp=50)
+plot(s_bears, style=plot.style_area, color=color.red, transp=50)
+
+// Bar tracking for exits
+var int long_entry_bar = na
+var int short_entry_bar = na
+
+bull_cross_up = crossover(s_bulls, 0)
+bear_cross_down = crossunder(s_bears, 0)
+
+// === ENTRY + TP/SL ===
+if (bull_cross_up)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long", limit=close * (1 + {{TP}} / 100), stop=close * (1 - {{SL}} / 100))
+    long_entry_bar := bar_index
+
+if (bear_cross_down)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short", limit=close * (1 - {{TP}} / 100), stop=close * (1 + {{SL}} / 100))
+    short_entry_bar := bar_index
+
+// === TIME-BASED EXITS ===
+if (strategy.position_size > 0 and not na(long_entry_bar) and bar_index - long_entry_bar >= exit_bars)
+    strategy.close("Long")
+    long_entry_bar := na
+
+if (strategy.position_size < 0 and not na(short_entry_bar) and bar_index - short_entry_bar >= exit_bars)
+    strategy.close("Short")
+    short_entry_bar := na
