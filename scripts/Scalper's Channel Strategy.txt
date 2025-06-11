@@ -1,0 +1,51 @@
+//@version=4
+strategy("Scalper's Channel Strategy [LazyBear Modified]", shorttitle="ScalperStrategy [LB]", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === Inputs ===
+length = input(20, title="Channel Length")
+factor = input(15, title="Scalper Line Factor")
+pi = atan(1) * 4
+
+// === Helper Function ===
+Average(x, y) => sum(x, y) / y
+
+// === Core Calculations ===
+scalper_line = Average(close, factor) - log(pi * atr(factor))
+highest_val = highest(length)
+lowest_val = lowest(length)
+
+// === Plotting (optional)
+plot(scalper_line, color=color.blue, linewidth=3, title="Scalper Line")
+plot(highest_val, color=color.fuchsia, title="Highest")
+plot(lowest_val, color=color.fuchsia, title="Lowest")
+
+// === Strategy Logic ===
+// Entry condition: price crosses above scalper line
+longCondition = crossover(close, scalper_line)
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Stop Loss / Take Profit for Long
+long_tp = close * (1 + {{TP}} / 100)
+long_sl = close * (1 - {{SL}} / 100)
+strategy.exit("Long Exit", from_entry="Long", limit=long_tp, stop=long_sl)
+
+// Exit condition: price crosses below scalper line or hits recent low
+exitCondition = crossunder(close, scalper_line) or close < lowest_val
+if (exitCondition)
+    strategy.close("Long")
+
+// === Short Logic ===
+shortCondition = crossunder(close, scalper_line)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Stop Loss / Take Profit for Short
+short_tp = close * (1 - {{TP}} / 100)
+short_sl = close * (1 + {{SL}} / 100)
+strategy.exit("Short Exit", from_entry="Short", limit=short_tp, stop=short_sl)
+
+// Short Exit condition
+shortExit = crossover(close, scalper_line) or close > highest_val
+if (shortExit)
+    strategy.close("Short")

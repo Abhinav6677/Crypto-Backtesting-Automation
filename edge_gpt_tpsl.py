@@ -113,7 +113,33 @@ def generate_strategy_report(driver, wait):
     time.sleep(2)
     wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Generate report']"))).click()
     time.sleep(1)
+    
+    try:
+        # Locate the outer container first
+        report_container = driver.find_element(By.CSS_SELECTOR, "div[class^='reportContainer-']")
 
+        # Then search inside it
+        pnl_elements = report_container.find_elements(By.CSS_SELECTOR, "div[class^='highlightedValue-']")
+        roi_elements = report_container.find_elements(By.CSS_SELECTOR, "div[class^='change-']")
+        pf_elements = report_container.find_elements(By.CSS_SELECTOR, "div[class^='value-']")
+
+        # Extract text cleanly
+        pnl = [el.text.strip() for el in pnl_elements if el.text.strip()]
+        roi = [el.text.strip() for el in roi_elements if el.text.strip()]
+        pf = [el.text.strip() for el in pf_elements if el.text.strip()]
+
+        print("📊 Extracted Report Stats (from report container):")
+        print("  💰 PnL:", pnl)
+        print("  📈 ROI:", roi)
+        print("  📊 Values:", pf)
+
+        return {"PnL": pnl, "ROI": roi, "Values": pf}
+
+    except Exception as e:
+        print("❌ Failed to extract report values:", e)
+        return {"PnL": [], "ROI": [], "Values": []}
+    
+    
 # === TAKE SCREENSHOT ===
 def take_screenshot(filename="strategy_report.png"):
     with mss.mss() as sct:
@@ -149,7 +175,7 @@ def main():
                 paste_code(textarea, code, actions)
                 print("saving and adding to chart")
                 save_and_add_to_chart(driver)
-                generate_strategy_report(driver, wait)
+                print(generate_strategy_report(driver, wait))
                 time.sleep(10)
 
                 # Create output dir

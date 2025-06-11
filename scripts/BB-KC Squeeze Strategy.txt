@@ -1,0 +1,74 @@
+//@version=4
+strategy("BB/KC Squeeze Strategy [LazyBear Modified]", shorttitle="SqueezeStrategy [LB]", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === Inputs ===
+length = input(20, minval=1, title="Length")
+mult = input(1.0, minval=0.001, maxval=50, title="Multiplier Factor")
+useTrueRange = input(false, title="Use True Range for KC")
+startSAR = input(0.02, title="SAR Start")
+incrementSAR = input(0.02, title="SAR Increment")
+maximumSAR = input(0.2, title="SAR Maximum")
+
+// === Bollinger Bands ===
+source = close
+basis = sma(source, length)
+dev = mult * stdev(source, length)
+upperBB = basis + dev
+lowerBB = basis - dev
+plot(basis, color=color.red, linewidth=2)
+p1 = plot(upperBB, color=color.red, linewidth=2)
+p2 = plot(lowerBB, color=color.red, linewidth=2)
+fill(p1, p2, color=color.red, transp=70)
+
+// === Keltner Channels ===
+ma = ema(source, length)
+range = useTrueRange ? tr : high - low
+rangema = ema(range, length)
+upperKC = ma + rangema * mult
+lowerKC = ma - rangema * mult
+plot(upperKC, color=color.lime, title="KC Upper")
+plot(ma, color=color.lime, title="KC Basis")
+plot(lowerKC, color=color.lime, title="KC Lower")
+fill(plot(upperKC), plot(lowerKC), color=color.green, transp=80)
+
+// === Squeeze Condition ===
+inSqueeze = (upperBB < upperKC) and (lowerBB > lowerKC)
+squeezeReleased = (upperBB > upperKC) and (lowerBB < lowerKC) and inSqueeze[1]
+
+// === SAR ===
+sarVal = sar(startSAR, incrementSAR, maximumSAR)
+plot(sarVal, color=color.blue, style=plot.style_cross)
+
+// === Entry/Exit Logic ===
+// Long entry: squeeze released and price closes above upper BB
+longCondition = squeezeReleased and close > upperBB
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// TP/SL for Long
+long_tp = close * (1 + {{TP}} / 100)
+long_sl = close * (1 - {{SL}} / 100)
+strategy.exit("Long Exit", from_entry="Long", limit=long_tp, stop=long_sl)
+
+// Long exit: SAR flip or price crosses below BB basis
+exitLong = crossover(sarVal, close) or crossunder(close, basis)
+if (exitLong)
+    strategy.close("Long")
+
+// Short entry: squeeze released and price closes below lower BB
+shortCondition = squeezeReleased and close < lowerBB
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// TP/SL for Short
+short_tp = close * (1 - {{TP}} / 100)
+short_sl = close * (1 + {{SL}} / 100)
+strategy.exit("Short Exit", from_entry="Short", limit=short_tp, stop=short_sl)
+
+// Short exit: SAR flip or price crosses above BB basis
+exitShort = crossunder(sarVal, close) or crossover(close, basis)
+if (exitShort)
+    strategy.close("Short")
+
+// === Optional Background Color ===
+bgcolor(inSqueeze ? color.yellow : (squeezeReleased ? color.blue : na), transp=85)
