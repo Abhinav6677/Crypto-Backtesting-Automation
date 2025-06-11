@@ -21,9 +21,9 @@ TP_SL_COMBINATIONS = [
 OUTPUT_BASE_DIR = os.path.abspath("reports")
 
 # === CONFIGURATION ===
-DRIVER_PATH = r"C:\Users\Paradox\super_mirror\msedgedriver.exe"
+DRIVER_PATH = r"D:\edgedriver_win64\msedgedriver.exe"
 EDGE_BINARY = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-PROFILE_DIR = r"C:\Users\Paradox\super_mirror\edge_profile"
+PROFILE_DIR = r"D:\Internship data\New folder\super_mirror\edge_profile"
 SCRIPTS_DIR = os.path.abspath("scripts")
 TRADINGVIEW_URL = "https://www.tradingview.com/chart"
 
