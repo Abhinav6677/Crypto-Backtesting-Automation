@@ -1,7 +1,7 @@
 import os
 import time
+import csv
 import pyperclip
-import mss
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -26,6 +26,8 @@ EDGE_BINARY = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 PROFILE_DIR = r"D:\Internship data\New folder\super_mirror\edge_profile"
 SCRIPTS_DIR = os.path.abspath("scripts")
 TRADINGVIEW_URL = "https://www.tradingview.com/chart"
+DOWNLOADS_DIR = r"D:\Download"  # Set to your actual browser downloads folder
+
 
 # === BROWSER SETUP ===
 def setup_browser():
@@ -44,22 +46,9 @@ def load_scripts(directory):
     files = sorted([f for f in os.listdir(directory) if f.lower().endswith('.txt')])
     return [os.path.join(directory, f) for f in files]
 
-# === HANDLE LOGIN ===
-def login_if_needed(driver, wait):
-    try:
-        wait.until(EC.presence_of_element_located((By.XPATH, "//span[text()='Pine Editor']")), timeout=10)
-        print("Already logged in.")
-    except Exception:
-        print("Please log in manually.")
-        input("After logging in, press Enter to continue...")
-        driver.get(TRADINGVIEW_URL)
-        wait.until(EC.presence_of_element_located((By.XPATH, "//span[text()='Pine Editor']")))
-
 # === OPEN PINE EDITOR ===
 def open_pine_editor(driver, wait):
     print("Opening Pine Editor...")
-
-    # Check if the Monaco editor is already present
     editor_elements = driver.find_elements(By.CSS_SELECTOR, "div.monaco-editor")
     visible_editors = [e for e in editor_elements if e.is_displayed()]
     if visible_editors:
@@ -70,16 +59,13 @@ def open_pine_editor(driver, wait):
         return textarea
     else:
         print("Pine Editor not visible, clicking the tab.")
-        # Click the Pine Editor button
         pine_editor_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Pine Editor']")))
         pine_editor_btn.click()
-        time.sleep(2)  # Let it load
-
-        # Wait and grab the editor
+        time.sleep(2)
         editor_div = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.monaco-editor")))
         editor_div.click()
         textarea = editor_div.find_element(By.TAG_NAME, "textarea")
-        return textarea    
+        return textarea
 
 def modify_code(code, tp, sl):
     code = code.replace("{{TP}}", str(tp))
@@ -92,19 +78,102 @@ def paste_code(textarea, code, actions):
     textarea.send_keys(Keys.CONTROL, 'a')
     textarea.send_keys(Keys.BACKSPACE)
     time.sleep(0.2)
-    
-    print("pasting code")
+    print("Pasting code")
     pyperclip.copy(code)
     actions.key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
     time.sleep(0.5)
 
 # === SAVE AND ADD TO CHART ===
-def save_and_add_to_chart(driver):
-    actions = ActionChains(driver)
-    actions.key_down(Keys.CONTROL).send_keys('s').key_up(Keys.CONTROL).perform()
-    time.sleep(1.5)
-    actions.key_down(Keys.CONTROL).send_keys(Keys.RETURN).key_up(Keys.CONTROL).perform()
-    print("Script saved and added to chart.")
+def save_and_add_to_chart(driver, actions, wait):
+    try:
+        print("Pressing Ctrl + Enter to add script to chart...")
+        actions.key_down(Keys.CONTROL).send_keys(Keys.ENTER).key_up(Keys.CONTROL).perform()
+        time.sleep(2)
+        print("✅ Script added to chart using Ctrl + Enter.")
+    except Exception as e:
+        print("❌ Failed to send Ctrl + Enter:", e)
+        
+import shutil
+
+def export_strategy_report(driver, wait, script_name, tp, sl):
+    try:
+        print("🟡 Waiting for strategy name dropdown...")
+        strategy_dropdown = wait.until(EC.element_to_be_clickable((
+            By.CSS_SELECTOR, "div[data-name='legend-source-title'] div[class*='button']"
+        )))
+        strategy_dropdown.click()
+        print("📂 Opened strategy dropdown.")
+
+        export_button = wait.until(EC.element_to_be_clickable((
+            By.XPATH, "//span[text()='Export data']"
+        )))
+        export_button.click()
+        print("📤 Clicked 'Export strategy report'.")
+
+        time.sleep(5)  # Wait for download to complete
+
+        # Move downloaded file
+        download_filename = os.path.join(DOWNLOADS_DIR, "StrategyTester.csv")
+        if not os.path.exists(download_filename):
+            print("❌ Exported file not found.")
+            return False
+
+        # Create destination folder
+        combo_dir = os.path.join(OUTPUT_BASE_DIR, f"TP{tp}_SL{sl}")
+        os.makedirs(combo_dir, exist_ok=True)
+
+        # Move to structured name
+        new_filename = os.path.join(combo_dir, f"{script_name}_TP{tp}_SL{sl}.csv")
+        shutil.move(download_filename, new_filename)
+        print(f"✅ Exported to: {new_filename}")
+        return True
+
+    except Exception as e:
+        print("❌ Error during export:", e)
+        return False
+
+        
+def generate_strategy_report_first(driver, wait):
+    # print("Opening Strategy Tester...")
+    # wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Strategy Tester']"))).click()
+    # time.sleep(2)
+    wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Generate report']"))).click()
+    time.sleep(3)
+    
+    try:
+        report = {}
+
+        # Get the Strategy Tester Panel
+        container = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[class^='reportContainer-']")))
+
+        # Total PnL & ROI
+        pnl_block = container.find_element(By.XPATH, ".//div[contains(text(), 'Total P&L')]/following-sibling::div[1]")
+        spans = pnl_block.find_elements(By.TAG_NAME, "span")
+        report["PnL"] = pnl_block.text.replace(spans[0].text, "").strip()
+        report["ROI"] = spans[0].text.strip()
+
+        # Profit Factor
+        profit_factor_elem = container.find_element(By.XPATH, ".//div[contains(text(), 'Profit factor')]/following-sibling::div[1]")
+        report["Profit Factor"] = profit_factor_elem.text.strip()
+
+        # Win Rate
+        win_rate_elem = container.find_element(By.XPATH, ".//div[contains(text(), 'Profitable trades')]/following-sibling::div[1]")
+        report["Win Rate"] = win_rate_elem.text.strip()
+
+        print("📊 Extracted:", report)
+        return report
+
+    except Exception as e:
+        print("❌ Failed to extract strategy metrics:", e)
+        return {
+            "PnL": "",
+            "ROI": "",
+            "Profit Factor": "",
+            "Win Rate": ""
+        }
+
+
+
 
 # === GENERATE STRATEGY REPORT ===
 def generate_strategy_report(driver, wait):
@@ -112,39 +181,41 @@ def generate_strategy_report(driver, wait):
     wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Strategy Tester']"))).click()
     time.sleep(2)
     wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Generate report']"))).click()
-    time.sleep(1)
+    time.sleep(3)
     
     try:
-        # Locate the outer container first
-        report_container = driver.find_element(By.CSS_SELECTOR, "div[class^='reportContainer-']")
+        report = {}
 
-        # Then search inside it
-        pnl_elements = report_container.find_elements(By.CSS_SELECTOR, "div[class^='highlightedValue-']")
-        roi_elements = report_container.find_elements(By.CSS_SELECTOR, "div[class^='change-']")
-        pf_elements = report_container.find_elements(By.CSS_SELECTOR, "div[class^='value-']")
+        # Get the Strategy Tester Panel
+        container = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[class^='reportContainer-']")))
 
-        # Extract text cleanly
-        pnl = [el.text.strip() for el in pnl_elements if el.text.strip()]
-        roi = [el.text.strip() for el in roi_elements if el.text.strip()]
-        pf = [el.text.strip() for el in pf_elements if el.text.strip()]
+        # Total PnL & ROI
+        pnl_block = container.find_element(By.XPATH, ".//div[contains(text(), 'Total P&L')]/following-sibling::div[1]")
+        spans = pnl_block.find_elements(By.TAG_NAME, "span")
+        report["PnL"] = pnl_block.text.replace(spans[0].text, "").strip()
+        report["ROI"] = spans[0].text.strip()
 
-        print("📊 Extracted Report Stats (from report container):")
-        print("  💰 PnL:", pnl)
-        print("  📈 ROI:", roi)
-        print("  📊 Values:", pf)
+        # Profit Factor
+        profit_factor_elem = container.find_element(By.XPATH, ".//div[contains(text(), 'Profit factor')]/following-sibling::div[1]")
+        report["Profit Factor"] = profit_factor_elem.text.strip()
 
-        return {"PnL": pnl, "ROI": roi, "Values": pf}
+        # Win Rate
+        win_rate_elem = container.find_element(By.XPATH, ".//div[contains(text(), 'Profitable trades')]/following-sibling::div[1]")
+        report["Win Rate"] = win_rate_elem.text.strip()
+
+        print("📊 Extracted:", report)
+        return report
 
     except Exception as e:
-        print("❌ Failed to extract report values:", e)
-        return {"PnL": [], "ROI": [], "Values": []}
-    
-    
-# === TAKE SCREENSHOT ===
-def take_screenshot(filename="strategy_report.png"):
-    with mss.mss() as sct:
-        sct.shot(output=filename)
-        print(f"Saved screenshot: {filename}")
+        print("❌ Failed to extract strategy metrics:", e)
+        return {
+            "PnL": "",
+            "ROI": "",
+            "Profit Factor": "",
+            "Win Rate": ""
+        }
+
+
 
 # === MAIN AUTOMATION ===
 def main():
@@ -153,40 +224,59 @@ def main():
     driver.get(TRADINGVIEW_URL)
     actions = ActionChains(driver)
     print("Loaded")
+
     try:
-        # login_if_needed(driver, wait)
         scripts = load_scripts(SCRIPTS_DIR)
         if not scripts:
             print("No .txt files found.")
             return
 
-        for idx, script_path in enumerate(scripts, 1):
+        for script_path in scripts:
             script_name = os.path.splitext(os.path.basename(script_path))[0]
-            
+
             with open(script_path, 'r', encoding='utf-8') as f:
                 base_code = f.read()
+            
+            flag = True
 
             for tp, sl in TP_SL_COMBINATIONS:
                 print(f"\n[{script_name}] Processing TP={tp}, SL={sl}")
                 code = modify_code(base_code, tp, sl)
 
                 textarea = open_pine_editor(driver, wait)
-                print("Editor loaded")
                 paste_code(textarea, code, actions)
-                print("saving and adding to chart")
-                save_and_add_to_chart(driver)
-                print(generate_strategy_report(driver, wait))
-                time.sleep(10)
+        
+                if flag:
+                    save_and_add_to_chart(driver, actions, wait)
+                    flag = False  # No need to click Ctrl+Enter again
+                    time.sleep(5)  # Let the strategy load
 
-                # Create output dir
-                combo_dir = os.path.join(OUTPUT_BASE_DIR, f"TP{tp}_SL{sl}")
-                os.makedirs(combo_dir, exist_ok=True)
+                # Export the detailed .csv file
+                export_success = export_strategy_report(driver, wait, script_name, tp, sl)
 
-                screenshot_filename = os.path.join(combo_dir, f"{script_name}_report.png")
-                take_screenshot(screenshot_filename)
-                time.sleep(2)
+                if not export_success:
+                    print(f"⚠️ Failed to export report for {script_name} TP={tp} SL={sl}")
 
-        print("\nAll scripts processed.")
+
+                # combo_dir = os.path.join(OUTPUT_BASE_DIR, f"TP{tp}_SL{sl}")
+                # os.makedirs(combo_dir, exist_ok=True)
+
+                # csv_filename = os.path.join(combo_dir, f"TP{tp}_SL{sl}.csv")
+                # file_exists = os.path.isfile(csv_filename)
+
+                # with open(csv_filename, mode='a', newline='', encoding='utf-8') as f:
+                #     writer = csv.writer(f)
+                #     if not file_exists:
+                #         writer.writerow(["Script", "TP", "SL", "PnL", "ROI", "Profit Factor", "Win Rate"])
+                #     writer.writerow([
+                #         script_name, tp, sl,
+                #         report["PnL"], report["ROI"],
+                #         report["Profit Factor"], report["Win Rate"]
+                #     ])
+                # print(f"✅ Appended to CSV: {csv_filename}")
+
+
+        print("\n✅ All scripts processed successfully.")
 
     except Exception as e:
         print(f"\n❌ Error occurred: {e}")
