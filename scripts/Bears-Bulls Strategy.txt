@@ -5,6 +5,7 @@ length = input(13)
 src = close
 exit_bars = input(10, "Exit After N Bars", minval=1)
 
+// === Indicator Calculation ===
 s_ma = sma(src, length)
 s_bulls = high - s_ma
 s_bears = low - s_ma
@@ -12,25 +13,36 @@ s_bears = low - s_ma
 plot(s_bulls, style=plot.style_area, color=color.green, transp=50)
 plot(s_bears, style=plot.style_area, color=color.red, transp=50)
 
-// Bar tracking for exits
+// === Bar Tracking ===
 var int long_entry_bar = na
 var int short_entry_bar = na
 
 bull_cross_up = crossover(s_bulls, 0)
 bear_cross_down = crossunder(s_bears, 0)
 
-// === ENTRY + TP/SL ===
+// === Automation Inputs ===
+takeProfitPerc = {{TP}}
+stopLossPerc = {{SL}}
+
+// === Long Entry ===
 if (bull_cross_up)
     strategy.entry("Long", strategy.long)
-    strategy.exit("TP/SL Long", from_entry="Long", limit=close * (1 + {{TP}} / 100), stop=close * (1 - {{SL}} / 100))
     long_entry_bar := bar_index
 
+longTP = strategy.position_avg_price * (1 + takeProfitPerc / 100)
+longSL = strategy.position_avg_price * (1 - stopLossPerc / 100)
+strategy.exit("TP/SL Long", from_entry="Long", limit=longTP, stop=longSL)
+
+// === Short Entry ===
 if (bear_cross_down)
     strategy.entry("Short", strategy.short)
-    strategy.exit("TP/SL Short", from_entry="Short", limit=close * (1 - {{TP}} / 100), stop=close * (1 + {{SL}} / 100))
     short_entry_bar := bar_index
 
-// === TIME-BASED EXITS ===
+shortTP = strategy.position_avg_price * (1 - takeProfitPerc / 100)
+shortSL = strategy.position_avg_price * (1 + stopLossPerc / 100)
+strategy.exit("TP/SL Short", from_entry="Short", limit=shortTP, stop=shortSL)
+
+// === Time-Based Exits ===
 if (strategy.position_size > 0 and not na(long_entry_bar) and bar_index - long_entry_bar >= exit_bars)
     strategy.close("Long")
     long_entry_bar := na

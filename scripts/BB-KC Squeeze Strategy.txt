@@ -39,36 +39,35 @@ squeezeReleased = (upperBB > upperKC) and (lowerBB < lowerKC) and inSqueeze[1]
 sarVal = sar(startSAR, incrementSAR, maximumSAR)
 plot(sarVal, color=color.blue, style=plot.style_cross)
 
-// === Entry/Exit Logic ===
-// Long entry: squeeze released and price closes above upper BB
+// === TP/SL Inputs for Automation ===
+takeProfitPerc = {{TP}}
+stopLossPerc = {{SL}}
+
+// === Entry Conditions ===
 longCondition = squeezeReleased and close > upperBB
+shortCondition = squeezeReleased and close < lowerBB
+
+// === Long Trade ===
 if (longCondition)
     strategy.entry("Long", strategy.long)
 
-// TP/SL for Long
-long_tp = close * (1 + {{TP}} / 100)
-long_sl = close * (1 - {{SL}} / 100)
-strategy.exit("Long Exit", from_entry="Long", limit=long_tp, stop=long_sl)
+longTP = strategy.position_avg_price * (1 + takeProfitPerc / 100)
+longSL = strategy.position_avg_price * (1 - stopLossPerc / 100)
+strategy.exit("Long TP/SL", from_entry="Long", limit=longTP, stop=longSL)
 
-// Long exit: SAR flip or price crosses below BB basis
-exitLong = crossover(sarVal, close) or crossunder(close, basis)
-if (exitLong)
+if (crossover(sarVal, close) or crossunder(close, basis))
     strategy.close("Long")
 
-// Short entry: squeeze released and price closes below lower BB
-shortCondition = squeezeReleased and close < lowerBB
+// === Short Trade ===
 if (shortCondition)
     strategy.entry("Short", strategy.short)
 
-// TP/SL for Short
-short_tp = close * (1 - {{TP}} / 100)
-short_sl = close * (1 + {{SL}} / 100)
-strategy.exit("Short Exit", from_entry="Short", limit=short_tp, stop=short_sl)
+shortTP = strategy.position_avg_price * (1 - takeProfitPerc / 100)
+shortSL = strategy.position_avg_price * (1 + stopLossPerc / 100)
+strategy.exit("Short TP/SL", from_entry="Short", limit=shortTP, stop=shortSL)
 
-// Short exit: SAR flip or price crosses above BB basis
-exitShort = crossunder(sarVal, close) or crossover(close, basis)
-if (exitShort)
+if (crossunder(sarVal, close) or crossover(close, basis))
     strategy.close("Short")
 
-// === Optional Background Color ===
+// === Visual Cue ===
 bgcolor(inSqueeze ? color.yellow : (squeezeReleased ? color.blue : na), transp=85)

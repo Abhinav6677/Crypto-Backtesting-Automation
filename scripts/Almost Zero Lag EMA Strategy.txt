@@ -1,40 +1,41 @@
-//@version=4
-strategy("Almost Zero Lag EMA Strategy [LazyBear]", shorttitle="ZLEMA_Strategy_LB", overlay=true)
+//@version=5
+strategy("Almost Zero Lag EMA Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10, initial_capital=100000)
 
-length = input(10)
-exit_bars = input(10, "Exit After N Bars", minval=1)
-src = close
+// === Inputs ===
+length = input.int(20, title="ZLEMA Length")
+takeProfitPerc = {{TP}}
+stopLossPerc = {{SL}}
 
-ema1 = ema(src, length)
-ema2 = ema(ema1, length)
-d = ema1 - ema2
-zlema = ema1 + d
+// === ZLEMA Calculation ===
+// ZLEMA is basically an EMA applied to de-lagged price: (2 * close - close[n])
+lag = math.floor((length - 1) / 2)
+price = 2 * close - close[lag]
+zlema = ta.ema(price, length)
 
-plot(zlema, color=color.orange, linewidth=2, title="ZLEMA")
+// === Entry Conditions ===
+longCondition = ta.crossover(close, zlema)
+shortCondition = ta.crossunder(close, zlema)
 
-// Entry Conditions
-long_condition = crossover(close, zlema)
-short_condition = crossunder(close, zlema)
+// === Exit Price Levels ===
+longTP = strategy.position_avg_price * (1 + takeProfitPerc / 100)
+longSL = strategy.position_avg_price * (1 - stopLossPerc / 100)
 
-// Track bar index for timed exit
-var int long_entry_bar = na
-var int short_entry_bar = na
+shortTP = strategy.position_avg_price * (1 - takeProfitPerc / 100)
+shortSL = strategy.position_avg_price * (1 + stopLossPerc / 100)
 
-if (long_condition)
+// === Strategy Logic ===
+if (longCondition)
     strategy.entry("Long", strategy.long)
-    strategy.exit("TP/SL Long", from_entry="Long", limit=close * (1 + {{TP}} / 100), stop=close * (1 - {{SL}} / 100))
-    long_entry_bar := bar_index
 
-if (short_condition)
+if (shortCondition)
     strategy.entry("Short", strategy.short)
-    strategy.exit("TP/SL Short", from_entry="Short", limit=close * (1 - {{TP}} / 100), stop=close * (1 + {{SL}} / 100))
-    short_entry_bar := bar_index
 
-// Exit after N bars
-if (strategy.position_size > 0 and not na(long_entry_bar) and bar_index - long_entry_bar >= exit_bars)
-    strategy.close("Long")
-    long_entry_bar := na
+if (strategy.position_size > 0)
+    strategy.exit("TP/SL Long", from_entry="Long", limit=longTP, stop=longSL)
 
-if (strategy.position_size < 0 and not na(short_entry_bar) and bar_index - short_entry_bar >= exit_bars)
-    strategy.close("Short")
-    short_entry_bar := na
+if (strategy.position_size < 0)
+    strategy.exit("TP/SL Short", from_entry="Short", limit=shortTP, stop=shortSL)
+
+// === Plotting ===
+plot(zlema, title="ZLEMA", color=color.orange, linewidth=2)
+plot(close, title="Price", color=color.gray)
