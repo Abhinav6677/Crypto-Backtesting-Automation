@@ -1,0 +1,52 @@
+//@version=4
+strategy("Almost Zero Lag EMA Strategy [LazyBear]", shorttitle="ZLEMA_Strategy_LB", overlay=true)
+
+// === Inputs ===
+length = input(10)
+exit_bars = input(10, "Exit After N Bars", minval=1)
+takeProfitPerc = {{TP}}
+stopLossPerc = {{SL}}
+src = close
+
+// === ZLEMA Calculation ===
+ema1 = ema(src, length)
+ema2 = ema(ema1, length)
+d = ema1 - ema2
+zlema = ema1 + d
+
+plot(zlema, color=color.orange, linewidth=2, title="ZLEMA")
+
+// === Entry Conditions ===
+long_condition = crossover(close, zlema)
+short_condition = crossunder(close, zlema)
+
+// === Track Entry Bars ===
+var int long_entry_bar = na
+var int short_entry_bar = na
+
+// === Long Entry ===
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+    long_entry_bar := bar_index
+
+longTP = strategy.position_avg_price * (1 + takeProfitPerc / 100)
+longSL = strategy.position_avg_price * (1 - stopLossPerc / 100)
+strategy.exit("TP/SL Long", from_entry="Long", limit=longTP, stop=longSL)
+
+// === Short Entry ===
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+    short_entry_bar := bar_index
+
+shortTP = strategy.position_avg_price * (1 - takeProfitPerc / 100)
+shortSL = strategy.position_avg_price * (1 + stopLossPerc / 100)
+strategy.exit("TP/SL Short", from_entry="Short", limit=shortTP, stop=shortSL)
+
+// === Time-Based Exit ===
+if (strategy.position_size > 0 and not na(long_entry_bar) and bar_index - long_entry_bar >= exit_bars)
+    strategy.close("Long")
+    long_entry_bar := na
+
+if (strategy.position_size < 0 and not na(short_entry_bar) and bar_index - short_entry_bar >= exit_bars)
+    strategy.close("Short")
+    short_entry_bar := na

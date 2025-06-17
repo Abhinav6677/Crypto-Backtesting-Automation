@@ -1,0 +1,50 @@
+//@version=6
+strategy("Weis Wave Volume Strategy [LazyBear]", overlay=false, initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// === Inputs ===
+trendDetectionLength = input(2, title="Trend Detection Length")
+showDistributionBelowZero = input(false, title="Show Distribution Below Zero")
+
+// === Dynamic SL/TP via placeholders ===
+stop_loss_sl = {{SL}} / 100
+take_profit_tp = {{TP}} / 100
+
+// === Wave Logic ===
+mov = close > close[1] ? 1 : close < close[1] ? -1 : 0
+var trend = 0
+trend := (mov != 0 and mov != mov[1]) ? mov : nz(trend[1])
+
+isTrending = ta.rising(close, trendDetectionLength) or ta.falling(close, trendDetectionLength)
+var wave = 0
+wave := (trend != nz(wave[1]) and isTrending) ? trend : nz(wave[1])
+
+var vol = 0.0
+vol := wave == wave[1] ? nz(vol[1]) + volume : volume
+
+up = wave == 1 ? vol : 0
+dn = showDistributionBelowZero ? (wave == 1 ? 0 : wave == -1 ? -vol : vol) : (wave == 1 ? 0 : vol)
+
+// === Strategy Logic ===
+long_entry = ta.crossover(wave, 0)
+long_exit = ta.crossunder(wave, 0)
+
+if (long_entry)
+    strategy.entry("Long", strategy.long)
+
+if (long_exit)
+    strategy.close("Long")
+
+// === Stop Loss / Take Profit ===
+long_sl = strategy.position_avg_price * (1 - stop_loss_sl)
+long_tp = strategy.position_avg_price * (1 + take_profit_tp)
+
+if strategy.position_size > 0
+    strategy.exit("Exit SL/TP", from_entry="Long", stop=long_sl, limit=long_tp)
+
+// === Plot Histogram ===
+plot(up, title="Up Wave Volume", style=plot.style_histogram, color=color.green, linewidth=3)
+plot(dn, title="Down Wave Volume", style=plot.style_histogram, color=color.red, linewidth=3)
+
+// === Visual Stop Loss / Take Profit Lines ===
+plot(strategy.position_size > 0 ? long_tp : na, color=color.green, title="Take Profit", style=plot.style_linebr)
+plot(strategy.position_size > 0 ? long_sl : na, color=color.red, title="Stop Loss", style=plot.style_linebr)

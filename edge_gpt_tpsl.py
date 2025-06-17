@@ -18,6 +18,17 @@ TP_SL_COMBINATIONS = [
     # Add more as needed
 ]
 
+TIME_INTERVALS = [
+    "1 hour"
+]
+    # "1 second",
+    # "30 minutes",
+    # "1 hour"
+    # "5 minutes"
+    #    "30 seconds",
+
+
+
 OUTPUT_BASE_DIR = os.path.abspath("reports")
 
 # === CONFIGURATION ===
@@ -53,55 +64,52 @@ def login_if_needed(driver, wait):
         print("Please log in manually.")
         input("After logging in, press Enter to continue...")
         driver.get(TRADINGVIEW_URL)
-        wait.until(EC.presence_of_element_located((By.XPATH, "//span[text()='Pine Editor']")))
-
-# === OPEN PINE EDITOR ===
-def open_pine_editor(driver, wait):
-    print("Opening Pine Editor...")
-
-    # Check if the Monaco editor is already present
-    editor_elements = driver.find_elements(By.CSS_SELECTOR, "div.monaco-editor")
-    visible_editors = [e for e in editor_elements if e.is_displayed()]
-    if visible_editors:
-        print("Pine Editor already visible.")
-        editor_div = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div.monaco-editor")))
-        editor_div.click()
-        textarea = editor_div.find_element(By.TAG_NAME, "textarea")
-        return textarea
-    else:
-        print("Pine Editor not visible, clicking the tab.")
-        # Click the Pine Editor button
-        pine_editor_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Pine Editor']")))
-        pine_editor_btn.click()
-        time.sleep(2)  # Let it load
-
-        # Wait and grab the editor
-        editor_div = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.monaco-editor")))
-        editor_div.click()
-        textarea = editor_div.find_element(By.TAG_NAME, "textarea")
-        return textarea    
+        wait.until(EC.presence_of_element_located((By.XPATH, "//span[text()='Pine Editor']")))    
 
 def modify_code(code, tp, sl):
     code = code.replace("{{TP}}", str(tp))
     code = code.replace("{{SL}}", str(sl))
     return code
 
-# === OPENING NEW EDITOR ===
-def open_new_editor(driver):
+def select_time_interval(driver, wait, interval_name):
+    """
+    Opens the TV interval dropdown and clicks exactly the menu item whose
+    visible text (normalized) equals interval_name (e.g. "1 second").
+    """
     try:
-        actions = ActionChains(driver)
-        
-        # Press Ctrl+K
-        actions.key_down(Keys.CONTROL).send_keys('k').key_up(Keys.CONTROL).perform()
-        time.sleep(0.5)  # Wait briefly between combos
+        # 1) Open the dropdown
+        dropdown_xpath = (
+            '/html/body/div[2]/div/div[3]/div/div/div[3]/div[1]'
+            '/div/div/div/div/div[4]/div/button/div'
+        )
+        wait.until(EC.element_to_be_clickable((By.XPATH, dropdown_xpath))).click()
+        time.sleep(1)  # let the menu render
 
-        # Press Ctrl+S (to trigger new script after K)
-        actions.key_down(Keys.CONTROL).send_keys('s').key_up(Keys.CONTROL).perform()
-        print("✅ Opened new editor using Ctrl+K then Ctrl+S.")
+        # 2) Grab all visible items (this includes both headers & actual intervals)
+        items = wait.until(EC.presence_of_all_elements_located((
+            By.XPATH, '//div[contains(@class,"tv-menu") or contains(@class,"item")]'
+        )))
 
-        time.sleep(1.5)  # Let editor load
+        # 3) Normalize and match EXACTLY against our target, skipping any header
+        target = interval_name.strip().lower()
+        for it in items:
+            txt = " ".join(it.text.split()).lower()  # collapse whitespace
+            if txt == target:
+                it.click()
+                print(f"✅ Selected interval ‘{interval_name}’")
+                time.sleep(2)  # allow chart to redraw
+                return True
+
+        # 4) If we get here, it wasn’t found
+        print(f"❌ Interval ‘{interval_name}’ not found in dropdown")
+        return False
+
     except Exception as e:
-        print("❌ Failed to open new editor:", e)
+        print(f"❌ Error selecting interval ‘{interval_name}’: {e}")
+        return False
+
+
+
         
 def prepare_editor(driver, wait):
     print("Opening and preparing Pine Editor...")
@@ -109,9 +117,10 @@ def prepare_editor(driver, wait):
     # Step 1: Ensure Pine Editor tab is active
     pine_editor_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Pine Editor']")))
     pine_editor_btn.click()
-    time.sleep(1)
-
+    time.sleep(3)
+    
     # Step 2: Click inside editor to focus
+    print("Click inside editor to focus")
     editor_div = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div.monaco-editor")))
     editor_div.click()
     time.sleep(0.5)
@@ -132,6 +141,7 @@ def prepare_editor(driver, wait):
     # Step 5: Get the active textarea
     textarea = editor_div.find_element(By.TAG_NAME, "textarea")
     return textarea
+
 
 
 # === PASTE CODE TO EDITOR ===
@@ -186,7 +196,7 @@ def generate_strategy_report(driver, wait):
         return {"PnL": pnl, "ROI": roi, "Values": pf}
 
     except Exception as e:
-        print("❌ Failed to extract report values:", e)
+        # print("❌ Failed to extract report values:", e)
         return {"PnL": [], "ROI": [], "Values": []}
     
   
@@ -196,6 +206,7 @@ def take_screenshot(filename="strategy_report.png"):
         sct.shot(output=filename)
         print(f"Saved screenshot: {filename}")
 
+# Sleep_Time = 70
 # === MAIN AUTOMATION ===
 def main():
     driver = setup_browser()
@@ -203,8 +214,8 @@ def main():
     driver.get(TRADINGVIEW_URL)
     actions = ActionChains(driver)
     print("Loaded")
+
     try:
-        # login_if_needed(driver, wait)
         scripts = load_scripts(SCRIPTS_DIR)
         if not scripts:
             print("No .txt files found.")
@@ -212,34 +223,39 @@ def main():
 
         for idx, script_path in enumerate(scripts, 1):
             script_name = os.path.splitext(os.path.basename(script_path))[0]
-            
+
             with open(script_path, 'r', encoding='utf-8') as f:
                 base_code = f.read()
 
-            for tp, sl in TP_SL_COMBINATIONS:
-                print(f"\n[{script_name}] Processing TP={tp}, SL={sl}")
-                code = modify_code(base_code, tp, sl)
+            for interval in TIME_INTERVALS:
+                print(f"\n🕒 Changing to interval: {interval}")
+                select_time_interval(driver, wait, interval)
+                # if Sleep_Time>20:
+                #     Sleep_Time -= 10
 
-                # textarea = open_pine_editor(driver, wait)
-                textarea = prepare_editor(driver, wait)
-                print("Editor loaded")
-                # open_new_editor(driver)
-                print("New editor is opened")
-                paste_code(textarea, code, actions)
-                print("saving and adding to chart")
-                save_and_add_to_chart(driver)
-                print(generate_strategy_report(driver, wait))
-                time.sleep(35)
+                for tp, sl in TP_SL_COMBINATIONS:
+                    print(f"\n[{script_name} | {interval}] Processing TP={tp}, SL={sl}")
+                    code = modify_code(base_code, tp, sl)
 
-                # Create output dir
-                combo_dir = os.path.join(OUTPUT_BASE_DIR, f"TP{tp}_SL{sl}")
-                os.makedirs(combo_dir, exist_ok=True)
+                    textarea = prepare_editor(driver, wait)
+                    print("Editor loaded")
+                    paste_code(textarea, code, actions)
+                    print("Saving and adding to chart...")
+                    save_and_add_to_chart(driver)
+                    print(generate_strategy_report(driver, wait))
+                    time.sleep(10)
 
-                screenshot_filename = os.path.join(combo_dir, f"{script_name}_report.png")
-                take_screenshot(screenshot_filename)
-                time.sleep(2)
+                    combo_dir = os.path.join(
+                        OUTPUT_BASE_DIR,
+                        f"{script_name.replace(' ', '_')}/Interval_{interval.replace(' ', '')}/TP{tp}_SL{sl}"
+                    )
+                    os.makedirs(combo_dir, exist_ok=True)
 
-        print("\nAll scripts processed.")
+                    screenshot_filename = os.path.join(combo_dir, "report.png")
+                    take_screenshot(screenshot_filename)
+                    time.sleep(2)
+
+        print("\n✅ All scripts processed.")
 
     except Exception as e:
         print(f"\n❌ Error occurred: {e}")
@@ -249,12 +265,10 @@ def main():
         except Exception:
             pass
 
+
 # === RUN SCRIPT ===
 if __name__ == "__main__":
     main()
-
-
-
 
 
 

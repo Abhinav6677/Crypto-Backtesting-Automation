@@ -1,0 +1,60 @@
+//@version=6
+strategy("SMIIO Strategy [LazyBear] - Long & Short", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=100000)
+
+// === Strategy Parameter s ===
+account_balance = 100000
+stop_loss_sl = {{SL}}
+take_profit_tp = {{TP}}
+
+// === Indicator Inputs ===
+shortlen = input.int(10, minval=1, title="Short Period")
+longlen = input.int(4, minval=1, title="Long Period")
+siglen = input.int(10, minval=1, title="Signal Line Period")
+sigInsteadOfOsc = input.bool(false, title="Use Signal Instead of Oscillator")
+
+// === Indicator Calculation ===
+src = close
+erg = ta.tsi(src, shortlen, longlen)
+sig = ta.ema(erg, siglen)
+osc = erg - sig
+
+// === Entry Conditions ===
+longCondition = ta.crossover(sigInsteadOfOsc ? sig : osc, 0)
+shortCondition = ta.crossunder(sigInsteadOfOsc ? sig : osc, 0)
+
+// === Entry Logic ===
+if longCondition and strategy.position_size <= 0
+    strategy.close("SMIIO Short")
+    strategy.entry("SMIIO Long", strategy.long)
+
+if shortCondition and strategy.position_size >= 0
+    strategy.close("SMIIO Long")
+    strategy.entry("SMIIO Short", strategy.short)
+
+// === Exit Logic ===
+float long_tp = na
+float long_sl = na
+float short_tp = na
+float short_sl = na
+
+if (strategy.position_size > 0 and not na(strategy.position_avg_price))
+    long_tp := strategy.position_avg_price * (1 + take_profit_tp)
+    long_sl := strategy.position_avg_price * (1 - stop_loss_sl)
+    strategy.exit("Long Exit", from_entry="SMIIO Long", stop=long_sl, limit=long_tp)
+
+if (strategy.position_size < 0 and not na(strategy.position_avg_price))
+    short_tp := strategy.position_avg_price * (1 - take_profit_tp)
+    short_sl := strategy.position_avg_price * (1 + stop_loss_sl)
+    strategy.exit("Short Exit", from_entry="SMIIO Short", stop=short_sl, limit=short_tp)
+
+// === Plotting ===
+plot(sigInsteadOfOsc ? sig : na, color=(sig > 0) ? (sig > sig[1] ? color.green : color.orange) : (sig < sig[1] ? color.red : color.orange), style=plot.style_histogram, title="SignalHist", linewidth=2)
+plot(not sigInsteadOfOsc ? osc : na, color=(osc > 0) ? (osc > osc[1] ? color.green : color.orange) : (osc < osc[1] ? color.red : color.orange), style=plot.style_histogram, title="OscHist", linewidth=2)
+plot(sig, color=color.orange, title="Signal")
+plot(erg, color=color.aqua, title="Indicator")
+
+// === SL/TP Lines ===
+plot(strategy.position_size > 0 and not na(long_tp) ? long_tp : na, title="Long Take Profit", color=color.green, style=plot.style_linebr)
+plot(strategy.position_size > 0 and not na(long_sl) ? long_sl : na, title="Long Stop Loss", color=color.red, style=plot.style_linebr)
+plot(strategy.position_size < 0 and not na(short_tp) ? short_tp : na, title="Short Take Profit", color=color.green, style=plot.style_linebr)
+plot(strategy.position_size < 0 and not na(short_sl) ? short_sl : na, title="Short Stop Loss", color=color.red, style=plot.style_linebr)

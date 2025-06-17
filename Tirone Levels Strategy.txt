@@ -1,0 +1,58 @@
+//@version=5
+strategy("Tirone Levels Strategy [LazyBear] (Dynamic TP/SL)",overlay=true,shorttitle="TironeLvl_Strategy_LB",initial_capital=100000,default_qty_type=strategy.percent_of_equity,default_qty_value=100)
+
+// === Inputs ===
+length     = input.int(20, title="Lookback Period")
+method_mp  = input.bool(false, title="Midpoint Method?")
+method_mm  = input.bool(true, title="Mean Method?")
+
+// === TP/SL Placeholders ===
+take_profit = {{TP}} / 100  // e.g., 5 means 5%
+stop_loss   = {{SL}} / 100
+
+// === High/Low for Calculations ===
+ll = ta.lowest(low, length)
+hh = ta.highest(high, length)
+
+// === Midpoint Method ===
+tlh = hh - ((hh - ll) / 3)
+clh = ll + ((hh - ll) / 2)
+blh = ll + ((hh - ll) / 3)
+
+// === Mean Method ===
+am = (hh + ll + close) / 3
+eh = am + (hh - ll)
+el = am - (hh - ll)
+rh = 2 * am - ll
+rl = 2 * am - hh
+
+// === Entry Logic ===
+// Buy when price crosses above AM (mean), Sell when it crosses below
+longCondition  = method_mm and ta.crossover(close, am)
+shortCondition = method_mm and ta.crossunder(close, am)
+
+if method_mp
+    longCondition := ta.crossover(close, clh)
+    shortCondition := ta.crossunder(close, clh)
+
+// === Strategy Entries and Exits ===
+if longCondition
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long",limit = close * (1 + take_profit),stop  = close * (1 - stop_loss))
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short",limit = close * (1 - take_profit), stop  = close * (1 + stop_loss))
+
+// === Plots ===
+// Midpoint plots
+plot(method_mp ? tlh : na, title="Top Level (MP)", color=color.red)
+plot(method_mp ? clh : na, title="Center Level (MP)", color=color.gray)
+plot(method_mp ? blh : na, title="Bottom Level (MP)", color=color.green)
+
+// Mean method plots
+plot(method_mm ? eh : na, title="Extended High (MM)", color=color.red)
+plot(method_mm ? rh : na, title="Resistance High (MM)", color=color.red)
+plot(method_mm ? am : na, title="Average Mean (MM)", color=color.blue)
+plot(method_mm ? rl : na, title="Resistance Low (MM)", color=color.green)
+plot(method_mm ? el : na, title="Extended Low (MM)", color=color.green)

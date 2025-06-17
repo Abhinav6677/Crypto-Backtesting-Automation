@@ -1,0 +1,72 @@
+//@version=6
+strategy("MAC-Z Strategy [LazyBear]", overlay=false, initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// === Constants ===
+account_balance = 100000
+stop_loss_sl = {{SL}} / 100
+take_profit_tp = {{TP}} / 100
+
+// === Inputs ===
+fastLength = input.int(12, minval=1, title="MACD Fast MA Length")
+slowLength = input.int(25, minval=1, title="MACD Slow MA Length")
+signalLength = input(9, title="MACD Signal Length")
+lengthz = input(25, title="ZScore Length")
+lengthStdev = input(25, title="Stdev Length")
+A = input.float(1.0, minval=-2.0, maxval=2.0, title="MACZ constant A")
+B = input.float(1.0, minval=-2.0, maxval=2.0, title="MACZ constant B")
+useLag = input(false, title="Apply Laguerre Smoothing")
+gamma = input(0.02, title="Laguerre Gamma")
+
+// === Laguerre function ===
+calc_laguerre(s, g) =>
+    var float l0 = na
+    var float l1 = na
+    var float l2 = na
+    var float l3 = na
+    l0 := (1 - g) * s + g * nz(l0[1])
+    l1 := -g * l0 + nz(l0[1]) + g * nz(l1[1])
+    l2 := -g * l1 + nz(l1[1]) + g * nz(l2[1])
+    l3 := -g * l2 + nz(l2[1]) + g * nz(l3[1])
+    (l0 + 2 * l1 + 2 * l2 + l3) / 6
+
+// === MAC-Z Calculation ===
+source = close
+zscore = (source - ta.wma(source, lengthz)) / ta.stdev(source, lengthz)
+fastMA = ta.sma(source, fastLength)
+slowMA = ta.sma(source, slowLength)
+macd = fastMA - slowMA
+macz_t = zscore * A + macd / ta.stdev(source, lengthStdev) * B
+macz = useLag ? calc_laguerre(macz_t, gamma) : macz_t
+signal = ta.sma(macz, signalLength)
+hist = macz - signal
+
+// === Entry Rules ===
+longCondition = ta.crossover(macz, signal)
+shortCondition = ta.crossunder(macz, signal)
+
+if longCondition
+    strategy.entry("Long", strategy.long)
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+// === Stop Loss and Take Profit ===
+long_sl_price = strategy.position_avg_price * (1 - stop_loss_sl)
+long_tp_price = strategy.position_avg_price * (1 + take_profit_tp)
+short_sl_price = strategy.position_avg_price * (1 + stop_loss_sl)
+short_tp_price = strategy.position_avg_price * (1 - take_profit_tp)
+
+if strategy.position_size > 0
+    strategy.exit("Long Exit", "Long", stop=long_sl_price, limit=long_tp_price)
+if strategy.position_size < 0
+    strategy.exit("Short Exit", "Short", stop=short_sl_price, limit=short_tp_price)
+
+// === SL/TP Plotting ===
+plot(strategy.position_size > 0 ? long_tp_price : na, title="Long TP", color=color.green)
+plot(strategy.position_size > 0 ? long_sl_price : na, title="Long SL", color=color.red)
+plot(strategy.position_size < 0 ? short_tp_price : na, title="Short TP", color=color.green)
+plot(strategy.position_size < 0 ? short_sl_price : na, title="Short SL", color=color.red)
+
+// === Indicator Plots ===
+plot(hist, color=color.red, style=plot.style_histogram, title="Histogram")
+plot(macz, color=color.green, title="MAC-Z")
+plot(signal, color=color.orange, title="Signal")

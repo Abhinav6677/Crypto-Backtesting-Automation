@@ -1,0 +1,49 @@
+//@version=5
+strategy("Derivative Oscillator Strategy [LazyBear] (Dynamic TP/SL)",
+     overlay=false,
+     shorttitle="DO_Strategy_LB",
+     initial_capital=100000,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100)
+
+// === Inputs ===
+length = input.int(14, title="RSI Length")
+p      = input.int(9, title="SMA Length")
+ema1   = input.int(5, title="EMA1 Length")
+ema2   = input.int(3, title="EMA2 Length")
+
+// === TP/SL Placeholders ===
+take_profit = 0.{{TP}}  // Replace {{TP}} with number like 05 (5%)
+stop_loss   = 0.{{SL}}  // Replace {{SL}} with number like 20 (20%)
+
+// === Derivative Oscillator Calculation ===
+rsi_base = ta.rsi(close, length)
+ema_rsi  = ta.ema(ta.ema(rsi_base, ema1), ema2)
+sma_line = ta.sma(ema_rsi, p)
+s2       = ema_rsi - sma_line
+
+// === Entry Logic ===
+longCondition  = ta.crossover(s2, 0)
+shortCondition = ta.crossunder(s2, 0)
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long",
+       limit = close * (1 + take_profit),
+       stop  = close * (1 - stop_loss))
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short",
+       limit = close * (1 - take_profit),
+       stop  = close * (1 + stop_loss))
+
+// === Plotting ===
+var color barColor = na
+if (s2 < 0)
+    barColor := s2 < s2[1] ? color.red : color.lime
+else
+    barColor := s2 > s2[1] ? color.lime : color.red
+
+plot(s2, title="Derivative Oscillator", style=plot.style_histogram, color=barColor)
+hline(0, "Zero Line", color=color.gray)

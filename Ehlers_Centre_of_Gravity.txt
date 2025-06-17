@@ -1,0 +1,56 @@
+//@version=5
+strategy("Ehlers Center of Gravity Oscillator Strategy", overlay=false,
+     default_qty_type=strategy.percent_of_equity, 
+     default_qty_value=100, 
+     initial_capital=100000,
+     calc_on_order_fills=true, calc_on_every_tick=true)
+
+// === Backtest Date Range ===
+startDate = timestamp(2023, 01, 01, 00, 00)
+endDate = timestamp(2025, 05, 01, 00, 00)
+inDateRange = (time >= startDate and time <= endDate)
+
+// === Inputs ===
+src = input.source(hl2, title="Source")
+length = input.int(10, title="Length", minval=1, maxval=100)
+fr = input.bool(true, title="Fill Osc/Trigger region")
+ebc = input.bool(false, title="Color bars?")
+
+// === PLACEHOLDER VALUES FOR AUTOMATION ===
+stop_loss_sl = {{SL}}  // e.g., 0.20 for 20%
+take_profit_tp = {{TP}}  // e.g., 0.50 for 50%
+
+// === Center of Gravity Calculation ===
+nm = 0.0
+dm = 0.0
+for i = 0 to length - 1
+    nm := nm + (1 + i) * nz(src[i])
+    dm := dm + nz(src[i])
+
+cg = dm != 0 ? -nm / dm + (length + 1) / 2.0 : 0.0
+t = cg[1]
+
+// === Plots ===
+plot(0, title="ZeroLine", color=color.gray)
+duml = plot(fr ? (cg > t ? cg : t) : na, style=plot.style_circles, linewidth=0, color=color.gray)
+cmil = plot(cg, title="CenterGravity", color=color.red)
+tl = plot(t, title="Trigger", color=color.green)
+fill(cmil, duml, color=color.red, transp=50)
+fill(tl, duml, color=color.lime, transp=50)
+
+// === Bar coloring ===
+bc = ebc ? (cg > 0 ? (cg > t ? color.lime : (cg == t ? color.gray : color.green)) : (cg < t ? color.red : color.orange)) : na
+barcolor(bc)
+
+// === Strategy Conditions ===
+longCondition = ta.crossover(cg, t) and inDateRange
+exitCondition = ta.crossunder(cg, t)
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (longCondition)
+    strategy.exit("TP/SL", from_entry="Long", stop=close * (1 - stop_loss_sl), limit=close * (1 + take_profit_tp))
+
+if (exitCondition)
+    strategy.close("Long")

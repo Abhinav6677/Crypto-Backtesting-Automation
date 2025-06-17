@@ -1,0 +1,38 @@
+//@version=5
+strategy("BOP Strategy [LazyBear Adaptation]", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=10, initial_capital=100000)
+
+// === Inputs ===
+length = input(14, title="MA Length")
+takeProfitPerc = {{TP}}
+stopLossPerc = {{SL}}
+
+// === BOP Calculation ===
+bop = (close - open) / (high - low)
+bop_sma = ta.sma(bop, length)
+
+// === Entry Conditions ===
+longCondition = ta.crossover(bop, bop_sma)
+shortCondition = ta.crossunder(bop, bop_sma)
+
+// === Exit Levels (calculated from entry price) ===
+longTP = strategy.position_avg_price * (1 + takeProfitPerc / 100)
+longSL = strategy.position_avg_price * (1 - stopLossPerc / 100)
+shortTP = strategy.position_avg_price * (1 - takeProfitPerc / 100)
+shortSL = strategy.position_avg_price * (1 + stopLossPerc / 100)
+
+// === Strategy Execution ===
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+if (strategy.position_size > 0)
+    strategy.exit("TP/SL Long", from_entry="Long", limit=longTP, stop=longSL)
+if (strategy.position_size < 0)
+    strategy.exit("TP/SL Short", from_entry="Short", limit=shortTP, stop=shortSL)
+
+// === Plotting ===
+b_color = bop >= 0 ? (bop >= bop[1] ? color.green : color.orange) : (bop >= bop[1] ? color.orange : color.red)
+plot(bop, title="BOP", color=b_color, style=plot.style_columns, linewidth=3)
+plot(bop_sma, title="BOP SMA", color=color.navy, linewidth=2)
+hline(0, "Zero Line", color=color.gray)

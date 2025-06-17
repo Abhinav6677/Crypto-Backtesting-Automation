@@ -1,0 +1,40 @@
+//@version=6
+strategy("Elder Market Thermometer Strategy [LazyBear]", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=100000)
+
+// === Inputs ===
+lengthMA = input.int(22, "EMA Length")
+explosiveMktThreshold = input.float(3.0, title="Explosive Market Threshold")
+idleMarketThreshold = input.int(7, title="Idle Market Threshold")
+
+// === PLACEHOLDERS for Automation ===
+stop_loss_sl = {{SL}}      // e.g., 0.15 for 15% SL
+take_profit_tp = {{TP}}    // e.g., 0.30 for 30% TP
+
+// === Calculations ===
+emt = high < high[1] and low > low[1] ? 0 :
+      (high - high[1]) > (low[1] - low) ? math.abs(high - high[1]) : math.abs(low[1] - low)
+
+aemt = ta.ema(emt, lengthMA)
+var int qc = 0
+qc := aemt > emt ? qc + 1 : 0
+
+// === Entry and Exit Conditions ===
+longCondition = emt > aemt and emt < aemt * explosiveMktThreshold
+exitCondition = emt < aemt and qc > idleMarketThreshold
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (longCondition)
+    strategy.exit("TP/SL", from_entry="Long", stop=close * (1 - stop_loss_sl), limit=close * (1 + take_profit_tp))
+
+if (exitCondition)
+    strategy.close("Long")
+
+// === Visualization ===
+cemt = emt < aemt ? (qc > idleMarketThreshold ? color.green : color.blue) :
+       (emt > aemt and emt < aemt * explosiveMktThreshold) ? color.orange :
+       color.red
+
+plot(emt, color=cemt, style=plot.style_columns, linewidth=2, title="Market Thermometer")
+plot(aemt, color=color.fuchsia, title="EMA of Market Thermometer")

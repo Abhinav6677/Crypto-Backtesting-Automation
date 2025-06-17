@@ -1,0 +1,44 @@
+//@version=5
+strategy("Inverse Fisher Transform CCI Strategy [LazyBear] (Dynamic TP/SL)",overlay=false,shorttitle="IFTCCI_Strategy_LB",initial_capital=100000,default_qty_type=strategy.percent_of_equity,default_qty_value=100)
+
+// === Inputs ===
+length     = input.int(20, title="CCI Length")
+lengthwma  = input.int(9, title="Smoothing Length")
+
+// === TP/SL Placeholders ===
+take_profit = {{TP}} / 100  // e.g. 5 → 0.05
+stop_loss   = {{SL}} / 100
+
+// === IFT-CCI Calculation ===
+src = close
+cc = ta.cci(src, length)
+
+calc_ifish(series, lengthwma) =>
+    v1 = 0.1 * (series - 50)
+    v2 = ta.wma(v1, lengthwma)
+    result = (math.exp(2 * v2) - 1) / (math.exp(2 * v2) + 1)
+    result
+
+ift = calc_ifish(cc, lengthwma)
+
+// === Entry Logic ===
+longCondition  = ta.crossover(ift, -0.5)
+shortCondition = ta.crossunder(ift, 0.5)
+
+if longCondition
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long",
+       limit = close * (1 + take_profit),
+       stop  = close * (1 - stop_loss))
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short",
+       limit = close * (1 - take_profit),
+       stop  = close * (1 + stop_loss))
+
+// === Plotting ===
+plot(ift, color=color.teal, linewidth=1, title="IFT-CCI")
+hline(0.5, "Upper Bound", color=color.red)
+hline(-0.5, "Lower Bound", color=color.green)
+hline(0, "Zero Line", color=color.gray)

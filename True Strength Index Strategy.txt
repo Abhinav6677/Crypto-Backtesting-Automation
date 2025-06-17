@@ -1,0 +1,42 @@
+//@version=4
+strategy("True Strength Index Strategy [LazyBear]", shorttitle="TSI_Strategy_LB", overlay=false)
+
+r = input(25, title="Momentum Smoothing 1")
+s = input(13, title="Momentum Smoothing 2")
+exit_bars = input(10, title="Exit After N Bars", minval=1)
+
+src = close
+m = src - src[1]
+tsi = 100 * (ema(ema(m, r), s) / ema(ema(abs(m), r), s))
+
+// Plotting
+ul = hline(25)
+ll = hline(-25)
+fill(ul, ll, color=color.gray, transp=90)
+plot(tsi, color=color.red, linewidth=2)
+hline(0, color=color.gray)
+
+// Entry/Exit Conditions
+long_condition = crossover(tsi, 0)
+short_condition = crossunder(tsi, 0)
+
+var int long_entry_bar = na
+var int short_entry_bar = na
+
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long", limit=close * (1 + {{TP}} / 100), stop=close * (1 - {{SL}} / 100))
+    long_entry_bar := bar_index
+
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short", limit=close * (1 - {{TP}} / 100), stop=close * (1 + {{SL}} / 100))
+    short_entry_bar := bar_index
+
+if (strategy.position_size > 0 and not na(long_entry_bar) and bar_index - long_entry_bar >= exit_bars)
+    strategy.close("Long")
+    long_entry_bar := na
+
+if (strategy.position_size < 0 and not na(short_entry_bar) and bar_index - short_entry_bar >= exit_bars)
+    strategy.close("Short")
+    short_entry_bar := na

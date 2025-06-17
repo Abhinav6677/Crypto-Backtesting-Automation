@@ -1,0 +1,59 @@
+//@version=4
+account_balance = 100000
+
+// === PLACEHOLDERS FOR AUTOMATION ===
+stop_loss_sl = {{SL}}        // e.g., 0.20 for 20% Stop Loss
+take_profit_tp = {{TP}}      // e.g., 0.07 for 7% Take Profit
+
+strategy("IFT CCI Strategy [Optimized]", shorttitle="IFTCCI_Strategy", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=10, initial_capital=account_balance, calc_on_order_fills=true, calc_on_every_tick=true)
+
+// === BACKTESTING PERIOD ===
+startDate = timestamp(2023, 01, 01, 00, 00)
+endDate = timestamp(2025, 05, 01, 00, 00)
+inDateRange = (time >= startDate and time <= endDate)
+
+// === INPUTS ===
+length = input(14, title="CCI Length")  // Reduced length for faster signals
+lengthwma = input(4, title="Smoothing Length")  // Reduced for sensitivity
+
+// === CCI & IFT Calculation ===
+cc = cci(close, length)
+
+calc_ifish(series, lengthwma) =>
+    v1 = 0.1 * (series - 50)
+    v2 = wma(v1, lengthwma)
+    (exp(2 * v2) - 1) / (exp(2 * v2) + 1)
+
+ift = calc_ifish(cc, lengthwma)
+
+// === STRATEGY CONDITIONS ===
+longCondition = crossover(ift, -0.4) and inDateRange  // More trades
+exitCondition = crossunder(ift, 0.4)  // Exit early to secure profits
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (longCondition)
+    strategy.exit("TP/SL", from_entry="Long", stop=close * (1 - stop_loss_sl), limit=close * (1 + take_profit_tp))
+
+if (exitCondition)
+    strategy.close("Long")
+
+// === PLOT ===
+plot(ift, color=color.teal, linewidth=1, title="IFT CCI")
+hline(0.5, color=color.red, linestyle=hline.style_dashed)
+hline(-0.5, color=color.green, linestyle=hline.style_dashed)
+hline(0, color=color.gray)
+
+// === SL/TP Visualization ===
+var float sl_line = na
+var float tp_line = na
+if (longCondition)
+    sl_line := close * (1 - stop_loss_sl)
+    tp_line := close * (1 + take_profit_tp)
+if (strategy.position_size == 0)
+    sl_line := na
+    tp_line := na
+
+plot(sl_line, title="Stop Loss Level", color=color.red, style=plot.style_linebr, linewidth=1)
+plot(tp_line, title="Take Profit Level", color=color.green, style=plot.style_linebr, linewidth=1)

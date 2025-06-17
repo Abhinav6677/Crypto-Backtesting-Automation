@@ -1,0 +1,40 @@
+//@version=5
+strategy("VHF Strategy [LazyBear] (Dynamic TP/SL)",overlay=false,shorttitle="VHF_Strategy_LB",initial_capital=100000,default_qty_type=strategy.percent_of_equity,default_qty_value=100)
+
+// === Inputs ===
+length      = input.int(28, title="VHF Period")
+showEma     = input.bool(false, title="Show EMA?")
+vhfEmaLen   = input.int(28, title="EMA Length for VHF Signal")
+
+// === TP/SL Placeholders ===
+take_profit = {{TP}} / 100  // e.g. 5 → 0.05
+stop_loss   = {{SL}} / 100  // e.g. 5 → 0.05
+
+// === VHF Calculation ===
+src   = close
+hcp   = ta.highest(src, length)
+lcp   = ta.lowest(src, length)
+cdiff = math.abs(close - close[1])
+N     = math.abs(hcp - lcp)
+D     = ta.sum(cdiff, length)
+vhf   = N / D
+
+// === Optional EMA of VHF
+vhfEma = ta.ema(vhf, vhfEmaLen)
+
+// === Entry Conditions ===
+longCondition  = ta.crossover(vhf, vhfEma)
+shortCondition = ta.crossunder(vhf, vhfEma)
+
+// === Entries & TP/SL Exits ===
+if longCondition
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long",limit = close * (1 + take_profit),stop  = close * (1 - stop_loss))
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short",limit = close * (1 - take_profit),stop  = close * (1 + stop_loss))
+
+// === Plotting ===
+plot(vhf, title="VHF", color=color.blue)
+plot(showEma ? vhfEma : na, title="VHF EMA", color=color.orange, linewidth=2)

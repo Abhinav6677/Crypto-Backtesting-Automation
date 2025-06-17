@@ -1,0 +1,67 @@
+//@version=5
+strategy("RSI/MFI Volatility Bands Strategy [LazyBear] (Dynamic TP/SL)", overlay=false, shorttitle="SI+Bands_Strategy_LB", initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// === Inputs ===
+length             = input.int(14, minval=1, title="Length")
+mult               = input.float(2.0, minval=0.001, maxval=50, title="BB Multiplier")
+DrawRSI_f          = input.bool(false, title="Draw RSI?")
+DrawMFI_f          = input.bool(true, title="Draw MFI?")
+HighlightBreaches  = input.bool(true, title="Highlight Oversold/Overbought?")
+
+// === TP/SL Placeholders ===
+take_profit = 0.{{TP}}  // Replace {{TP}} with 05, 10, etc. for automation
+stop_loss   = 0.{{SL}}  // Replace {{SL}} with 10, 20, etc. for automation
+
+// === Source
+source = hlc3
+
+// === Selector Logic
+DrawMFI = (not DrawMFI_f and not DrawRSI_f) ? true : DrawMFI_f
+DrawRSI = (DrawMFI_f and DrawRSI_f) ? false : DrawRSI_f
+
+// === RSI
+rsi_s = DrawRSI ? ta.rsi(source, length) : na
+
+// === MFI Calculation (safe)
+upFlow   = ta.change(source) > 0 ? volume * source : 0
+downFlow = ta.change(source) < 0 ? volume * source : 0
+
+sumUp   = sum(upFlow, length)
+sumDown = sum(downFlow, length)
+
+money_ratio = DrawMFI ? (sumDown == 0 ? na : sumUp / sumDown) : na
+mf = DrawMFI ? (money_ratio == na ? na : 100 - (100 / (1 + money_ratio))) : na
+
+// === Select indicator for BB
+bb_s = DrawRSI ? rsi_s : DrawMFI ? mf : na
+
+// === Bollinger Bands
+basis = ta.sma(bb_s, length)
+dev   = mult * ta.stdev(bb_s, length)
+upper = basis + dev
+lower = basis - dev
+
+// === Entry Conditions
+longCondition  = ta.crossover(bb_s, lower)
+shortCondition = ta.crossunder(bb_s, upper)
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long",limit = close * (1 + take_profit),stop  = close * (1 - stop_loss))
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short",limit = close * (1 - take_profit),stop  = close * (1 + stop_loss))
+
+// === Plotting
+plot(DrawRSI ? rsi_s : na, title="RSI", color=color.maroon, linewidth=2)
+plot(DrawMFI ? mf : na, title="MFI", color=color.green, linewidth=2)
+
+plot(basis, title="BB Basis", color=color.red)
+p1 = plot(upper, title="BB Upper", color=color.blue)
+p2 = plot(lower, title="BB Lower", color=color.blue)
+fill(p1, p2, color=color.new(color.blue, 85))
+
+// === Highlight Background
+b_color = (bb_s > upper) ? color.red : (bb_s < lower ? color.green : na)
+bgcolor(HighlightBreaches ? b_color : na)
