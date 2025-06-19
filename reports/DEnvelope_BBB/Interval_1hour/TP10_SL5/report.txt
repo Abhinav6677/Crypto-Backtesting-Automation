@@ -1,0 +1,57 @@
+@ © vw BICUSD 105,368 ¥ -1.37% Unne xX =
+
+< GB https://www-tradingview.com/chart/WfRucoHO/ WE
+
+(4) ™ F oo vany Unnamed
+rYS QesTCUSD (CG) ‘th Ht Gi Indicators ~ G5 G Alert <q Replay SQ nar v
+
+.© Bitcoin / U.S. Dollar - th-BITSTAMP © 0105,547 H105,769 L105,240 C105,368 -181 (-0.17%)
+
+[ 193,237 ] a1 [ 195,368 } TRE
++ SELL BUY) a ’ 106,533
+—--BR-Strategy_LB 16 9 2.5 20 1.5 15 T0-107,559_ 106,921 107,533 105,963106,748 | : < ' 106,533
+
+“DENV_LB_ STRAT 20 2-108; 33 1047: 106,533
+ig 106,533
+
+106,533
+
+5)
+Crypto Pairs Screener _ Pine Editor Strategy Tester Replay Trading Trading Panel
+DENV_LB_STRAT report ~ 2023-01-01 — 2025-05-01 G sort @ D Deep Backtesting @
+Performance Trades analysis Risk/performance ratios List of trades
+
+Total P&L @ Max equity drawdown @ Total trades @ Profitable trades @ Profit factor @
++50,720.14 usp +50.66% 72,131.26 usD 46.44% 1,146 31.06% 356/1146 1.082
+
+150,000.00
+-10,000.00
+
+140,000.00
+-20,000.00
+
+130,000.00
+-30,000.00
+
+120,000.00
+-40,000.00
+
+110,000.00
+-50,000.00
+
+Show more @ =X
+
+-60,000.00
+
+Alert on @ eTcusp x Ny |
+McGinley Alert SHORT
+
+{'time":"2025-06-17T13:55:00Z",
+symbol":"BTCUSD", “signal":"SHORT'} 289 4,009 4,081
+
+Edit alert 19:27:04
+
+-70,000.00
+
+-quity VW Absolute Percentage
+

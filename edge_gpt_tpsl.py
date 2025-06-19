@@ -2,6 +2,7 @@ import os
 import time
 import pyperclip
 import mss
+import gspread
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -10,6 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.edge.service import Service
 from selenium.webdriver.edge.options import Options
+from google.oauth2.service_account import Credentials
 
 TP_SL_COMBINATIONS = [
     (5, 5),
@@ -19,13 +21,29 @@ TP_SL_COMBINATIONS = [
 ]
 
 TIME_INTERVALS = [
-    "1 hour"
+    "1 second",
+    "30 seconds",
+    "1 minute",
 ]
     # "1 second",
+    # "30 seconds",
+    # "1 minute",
+    # "5 minutes",
     # "30 minutes",
     # "1 hour"
-    # "5 minutes"
-    #    "30 seconds",
+
+
+
+# Setup Google Sheets credentials
+def setup_google_sheets():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/spreadsheets",
+             "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
+    client = gspread.authorize(creds)
+    sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1CIDJI6wXeu0UsWgI6ydcBps3NI8T0utQ0X26zd6jiIo/edit?usp=sharing").sheet1
+    if not sheet.get_all_values():  # if sheet is empty
+        sheet.append_row(["Strategy Name", "Interval", "TP", "SL", "Pair", "PnL", "ROI", "Profit Factor", "Win Rate"])
+    return sheet
 
 
 
@@ -174,47 +192,46 @@ def generate_strategy_report(driver, wait):
     wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Generate report']"))).click()
     time.sleep(3)
     
-    try:
-        # Locate the outer container first
-        report_container = driver.find_element(By.CSS_SELECTOR, "div[class^='reportContainer-']")
-
-        # Then search inside it
-        pnl_elements = report_container.find_elements(By.CSS_SELECTOR, "div[class^='highlightedValue-']")
-        roi_elements = report_container.find_elements(By.CSS_SELECTOR, "div[class^='change-']")
-        pf_elements = report_container.find_elements(By.CSS_SELECTOR, "div[class^='value-']")
-
-        # Extract text cleanly
-        pnl = [el.text.strip() for el in pnl_elements if el.text.strip()]
-        roi = [el.text.strip() for el in roi_elements if el.text.strip()]
-        pf = [el.text.strip() for el in pf_elements if el.text.strip()]
-
-        print("📊 Extracted Report Stats (from report container):")
-        print("  💰 PnL:", pnl)
-        print("  📈 ROI:", roi)
-        print("  📊 Values:", pf)
-
-        return {"PnL": pnl, "ROI": roi, "Values": pf}
-
-    except Exception as e:
-        # print("❌ Failed to extract report values:", e)
-        return {"PnL": [], "ROI": [], "Values": []}
-    
   
 # === TAKE SCREENSHOT ===
 def take_screenshot(filename="strategy_report.png"):
     with mss.mss() as sct:
         sct.shot(output=filename)
         print(f"Saved screenshot: {filename}")
+        
+def extract_and_log_to_sheet(driver, script_name, interval, tp, sl, sheet):
+    try:
+        pnl_xpath = '/html/body/div[2]/div/div[7]/div[2]/div[4]/div/div/div/div[3]/div[1]/div[1]/div[2]/div[1]'
+        roi_xpath = '/html/body/div[2]/div/div[7]/div[2]/div[4]/div/div/div/div[3]/div[1]/div[1]/div[2]/div[3]'
+        pf_xpath  = '/html/body/div[2]/div/div[7]/div[2]/div[4]/div/div/div/div[3]/div[1]/div[5]/div[2]/div'
+        win_xpath = '/html/body/div[2]/div/div[7]/div[2]/div[4]/div/div/div/div[3]/div[1]/div[4]/div[2]/div[1]'
+        pair_xpath = '/html/body/div[2]/div/div[3]/div/div/div[3]/div[1]/div/div/div/div/div[2]/button[1]/div'
 
-# Sleep_Time = 70
+        pnl = driver.find_element(By.XPATH, pnl_xpath).text.strip()
+        roi = driver.find_element(By.XPATH, roi_xpath).text.strip()
+        pf = driver.find_element(By.XPATH, pf_xpath).text.strip()
+        win = driver.find_element(By.XPATH, win_xpath).text.strip()
+        pair = driver.find_element(By.XPATH, pair_xpath).text.strip()
+
+        row = [script_name, interval, tp, sl, pair, pnl, roi, pf, win]
+        sheet.append_row(row)
+        time.sleep(1.5)
+        print("📄 Data logged to Google Sheet.")
+    except Exception as e:
+        print(f"❌ Error logging to Google Sheet: {e}")
+
+
+
 # === MAIN AUTOMATION ===
 def main():
     driver = setup_browser()
+    
     wait = WebDriverWait(driver, 30)
     driver.get(TRADINGVIEW_URL)
     actions = ActionChains(driver)
     print("Loaded")
-
+    
+    sheet = setup_google_sheets()
     try:
         scripts = load_scripts(SCRIPTS_DIR)
         if not scripts:
@@ -230,8 +247,6 @@ def main():
             for interval in TIME_INTERVALS:
                 print(f"\n🕒 Changing to interval: {interval}")
                 select_time_interval(driver, wait, interval)
-                # if Sleep_Time>20:
-                #     Sleep_Time -= 10
 
                 for tp, sl in TP_SL_COMBINATIONS:
                     print(f"\n[{script_name} | {interval}] Processing TP={tp}, SL={sl}")
@@ -243,7 +258,7 @@ def main():
                     print("Saving and adding to chart...")
                     save_and_add_to_chart(driver)
                     print(generate_strategy_report(driver, wait))
-                    time.sleep(10)
+                    time.sleep(100)
 
                     combo_dir = os.path.join(
                         OUTPUT_BASE_DIR,
@@ -252,7 +267,9 @@ def main():
                     os.makedirs(combo_dir, exist_ok=True)
 
                     screenshot_filename = os.path.join(combo_dir, "report.png")
-                    take_screenshot(screenshot_filename)
+                    take_screenshot(screenshot_filename)                        
+                    extract_and_log_to_sheet(driver, script_name, interval, tp, sl, sheet)
+
                     time.sleep(2)
 
         print("\n✅ All scripts processed.")

@@ -58,14 +58,10 @@ if (shortCondition)
 
 // === Add Stop Loss & Take Profit ===
 if (longCondition)
-    strategy.exit("TP/SL Long", from_entry="Long", 
-        stop=close * (1 - stop_loss_sl), 
-        limit=close * (1 + take_profit_tp))
+    strategy.exit("TP/SL Long", from_entry="Long", stop=close * (1 - stop_loss_sl), limit=close * (1 + take_profit_tp))
 
 if (shortCondition)
-    strategy.exit("TP/SL Short", from_entry="Short", 
-        stop=close * (1 + stop_loss_sl), 
-        limit=close * (1 - take_profit_tp))
+    strategy.exit("TP/SL Short", from_entry="Short", stop=close * (1 + stop_loss_sl), limit=close * (1 - take_profit_tp))
 
 // === Close Opposite Positions on Signal Change ===
 strategy.close("Long", when=shortCondition)

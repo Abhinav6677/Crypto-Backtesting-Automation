@@ -1,0 +1,52 @@
+//@version=5
+strategy("Market Facilitation Index v2 Strategy [LazyBear] (Dynamic TP/SL)", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=100000)
+
+// === TP/SL Placeholders for Automation ===
+take_profit_tp = {{TP}}  // Example: 0.05 for 5%
+stop_loss_sl   = {{SL}}  // Example: 0.20 for 20%
+
+// === Inputs ===
+plot_offs = input.float(0.005, title="Indicator offset % (below low)")
+useCustomTimeframe = input.bool(false, title="Use Custom Timeframe?")
+customTimeframe = input.timeframe("D", title="Custom Timeframe")
+
+// === Data with optional timeframe ===
+h = useCustomTimeframe ? request.security(syminfo.tickerid, customTimeframe, high) : high
+l = useCustomTimeframe ? request.security(syminfo.tickerid, customTimeframe, low) : low
+v = useCustomTimeframe ? request.security(syminfo.tickerid, customTimeframe, volume) : volume
+
+// === ROC Calculations ===
+r_hl = ta.roc((h - l) / v, 1)
+r_v = ta.roc(v, 1)
+
+// === Market Facilitation Color Conditions ===
+green_f = (r_hl > 0) and (r_v > 0)
+fade_f = (r_hl < 0) and (r_v < 0)
+fake_f = (r_hl > 0) and (r_v < 0)
+squat_f = (r_hl < 0) and (r_v > 0)
+
+b_color = green_f ? color.green : fade_f ? color.blue : fake_f ? color.gray : squat_f ? color.red : na
+
+// === Plotting ===
+plot(l - (l * plot_offs), color=b_color, style=plot.style_circles, linewidth=4)
+
+// === Strategy Logic ===
+longCondition  = green_f
+exitLong       = fade_f
+shortCondition = squat_f
+exitShort      = fake_f
+
+// === Entries with TP/SL ===
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long", profit=take_profit_tp * close, loss=stop_loss_sl * close)
+
+if (exitLong)
+    strategy.close("Long")
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short", profit=take_profit_tp * close, loss=stop_loss_sl * close)
+
+if (exitShort)
+    strategy.close("Short")

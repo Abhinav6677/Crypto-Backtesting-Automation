@@ -1,0 +1,58 @@
+//@version=6
+strategy("DEnvelope [BBB] Strategy (Dynamic TP/SL)", shorttitle="DENV_LB_STRAT", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=100000)
+
+// === Placeholders for Automation ===
+takeProfitPct = {{TP}}  // e.g. 5
+stopLossPct   = {{SL}}  // e.g. 20
+
+// === Inputs ===
+lb = input.int(20, title="DEnvelope Lookback Length")
+de = input.float(2.0, title="Band Deviation")
+
+// === Core Logic ===
+alp = 2 / (lb + 1)
+src = hlc3
+
+var float mt = na
+var float ut = na
+var float dt = na
+var float mt2 = na
+var float ut2 = na
+var float dt2 = na
+
+mt := alp * src + (1 - alp) * nz(mt[1])
+ut := alp * mt + (1 - alp) * nz(ut[1])
+dt := ((2 - alp) * mt - ut) / (1 - alp)
+mt2 := alp * math.abs(src - dt) + (1 - alp) * nz(mt2[1])
+ut2 := alp * mt2 + (1 - alp) * nz(ut2[1])
+dt2 := ((2 - alp) * mt2 - ut2) / (1 - alp)
+
+but = dt + de * dt2
+blt = dt - de * dt2
+
+// === Signal Logic ===
+longSignal  = ta.crossover(close, blt)
+shortSignal = ta.crossunder(close, but)
+
+// === Entries with TP/SL as price targets ===
+long_tp  = close * (1 + takeProfitPct / 100)
+long_sl  = close * (1 - stopLossPct / 100)
+short_tp = close * (1 - takeProfitPct / 100)
+short_sl = close * (1 + stopLossPct / 100)
+
+if (longSignal)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long", limit=long_tp, stop=long_sl)
+
+if (shortSignal)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short", limit=short_tp, stop=short_sl)
+
+// === Plotting Bands ===
+plot(but, color=color.red, linewidth=2, title="Upper Band")
+plot(dt, color=color.gray, title="Mid Line")
+plot(blt, color=color.green, linewidth=2, title="Lower Band")
+
+// === Visual Markers ===
+plotshape(longSignal, title="LONG Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(shortSignal, title="SHORT Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
